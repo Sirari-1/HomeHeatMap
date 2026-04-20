@@ -168,6 +168,30 @@ window.floridaHeatMap = {
         `;
     },
 
+    buildCityCard(city, selectedMetric, metricValue) {
+        const cityName = city.city ?? 'Unknown City';
+        const safetyScore = Number.isFinite(Number(city.safetyPercentile)) ? Number(city.safetyPercentile) : null;
+        const grade = this.getSafetyGrade(city.violentRate);
+        const gradeColor = this.getSafetyGradeColor(grade);
+
+        return `
+            <div style="min-width:280px; padding:10px 12px; font-family:Segoe UI, Arial, sans-serif;">
+                <div style="font-size:20px; font-weight:800; color:#1f2937; margin-bottom:6px;">${cityName}</div>
+                <div style="font-size:16px; color:#111827; margin-bottom:4px;">
+                    ${selectedMetric}: <b>${Number.isFinite(metricValue) ? metricValue.toFixed(2) : 'N/A'}</b>
+                </div>
+                <div style="font-size:18px; font-weight:900; color:${gradeColor}; margin-bottom:4px;">
+                    Safety Grade: ${grade}
+                </div>
+                <div style="font-size:16px; font-weight:700; color:#111827; margin-bottom:4px;">
+                    Safety Score: ${safetyScore !== null ? `${safetyScore}/100` : 'N/A'}
+                </div>
+                <div style="font-size:15px; color:#111827; margin-bottom:3px;">Population: ${city.population?.toLocaleString() ?? 'N/A'}</div>
+                <div style="font-size:15px; color:#111827;">Trajectory: ${city.trajectory ?? 'N/A'}</div>
+            </div>
+        `;
+    },
+
     drawCityLayers(cities, selectedMetric) {
         if (!this.map) return;
 
@@ -198,22 +222,24 @@ window.floridaHeatMap = {
                     fillColor: '#e74c3c',
                     fillOpacity: 0.7
                 })
-                    .bindPopup(`
-                        <b>${city.city}</b><br/>
-                        ${selectedMetric}: ${metricValue.toFixed(2)}<br/>
-                        Population: ${city.population?.toLocaleString()}<br/>
-                        Safety Percentile: ${city.safetyPercentile}<br/>
-                        Trajectory: ${city.trajectory}
-                    `)
-                    .bindTooltip(this.buildSafetyTooltip(city), {
-                        direction: 'top',
-                        sticky: true,
-                        opacity: 1,
-                        offset: [0, -12],
+                    .bindPopup(this.buildCityCard(city, selectedMetric, metricValue), {
+                        maxWidth: 320,
                         className: 'city-safety-tooltip'
                     })
-                    .on('mouseover', function () { this.openTooltip(); })
+                    .bindTooltip(this.buildCityCard(city, selectedMetric, metricValue), {
+                        direction: 'top',
+                        sticky: false,
+                        opacity: 1,
+                        offset: [0, -18],
+                        className: 'city-safety-tooltip'
+                    })
+                    .on('mouseover', function () {
+                        if (!this.isPopupOpen()) {
+                            this.openTooltip();
+                        }
+                    })
                     .on('mouseout', function () { this.closeTooltip(); })
+                    .on('popupopen', function () { this.closeTooltip(); })
                     .addTo(this.markersLayer);
             }
         }
