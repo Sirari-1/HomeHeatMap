@@ -1,0 +1,215 @@
+﻿@page "/cities"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject ICrimeDataRepository Repo
+
+<PageTitle>Florida Cities — Crime Data</PageTitle>
+
+<h2>Florida Cities — Detailed Crime Data</h2>
+
+@if (_isLoading)
+{
+    <p>⏳ Loading...</p>
+}
+else if (!string.IsNullOrWhiteSpace(_loadError))
+{
+    <p class="text-danger">⚠️ @_loadError</p>
+}
+else if (_cities.Count == 0)
+{
+    <p>No city data found.</p>
+}
+else
+{
+    <p style="color: gray; font-size: 13px;">
+        @FilteredCities.Count() of @_cities.Count cities shown. Click column headers to sort.
+    </p>
+
+    <div style="overflow-x: auto; max-height: 75vh; overflow-y: auto;">
+        <table class="table table-striped table-hover table-sm" style="font-size: 13px;">
+            <thead class="table-dark" style="position: sticky; top: 0; z-index: 10;">
+                <tr>
+                    @foreach (var col in _columns)
+                    {
+                        <th style="cursor:pointer; white-space:nowrap; user-select:none;"
+                            @onclick="() => SortBy(col.Key)">
+                            @col.Label @SortIndicator(col.Key)
+                        </th>
+                    }
+                </tr>
+                <tr>
+                    @foreach (var col in _columns)
+                    {
+                        <th style="padding: 2px 4px;">
+                            <input class="form-control form-control-sm"
+                                   style="font-size:11px; min-width:60px;"
+                                   placeholder="Filter…"
+                                   value="@_filters[col.Key]"
+                                   @oninput="e => SetFilter(col.Key, e.Value?.ToString() ?? string.Empty)" />
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var city in FilteredAndSortedCities)
+                {
+                    var grade = CityGridHelpers.GetSafetyGrade(city.ViolentRate);
+                    <tr>
+                        <td>@city.City</td>
+                        <td>@city.State</td>
+                        <td>
+                            <span style="color: @CityGridHelpers.GetGradeColor(grade); font-weight: bold;">
+                                @grade
+                            </span>
+                        </td>
+                        <td>@city.Population.ToLocaleString()</td>
+                        <td>@city.ViolentCrime</td>
+                        <td>@city.ViolentRate.ToString("F2")</td>
+                        <td>@city.Murder</td>
+                        <td>@city.MurderRate.ToString("F2")</td>
+                        <td>@city.PropertyCrime</td>
+                        <td>@city.PropertyRate.ToString("F2")</td>
+                        <td>@city.Year</td>
+                        <td>@city.ViolentChange.ToString("F2")</td>
+                        <td>@city.Trajectory</td>
+                        <td>@city.ViolentToPropertyRatio.ToString("F2")</td>
+                        <td>
+                            <span style="color: @CityGridHelpers.GetPercentileColor(city.SafetyPercentile); font-weight: bold;">
+                                @city.SafetyPercentile
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<CrimeCity> _cities = new();
+    private bool _isLoading = true;
+    private string? _loadError;
+    private string _sortColumn = "City";
+    private bool _sortAsc = true;
+
+    private record ColumnDef(string Key, string Label);
+    private readonly List<ColumnDef> _columns = new()
+    {
+        new("City",                   "City"),
+        new("State",                  "State"),
+        new("SafetyGrade",            "Safety Grade"),
+        new("Population",             "Population"),
+        new("ViolentCrime",           "Violent Crime"),
+        new("ViolentRate",            "Violent Rate"),
+        new("Murder",                 "Murder"),
+        new("MurderRate",             "Murder Rate"),
+        new("PropertyCrime",          "Property Crime"),
+        new("PropertyRate",           "Property Rate"),
+        new("Year",                   "Year"),
+        new("ViolentChange",          "Violent Change"),
+        new("Trajectory",             "Trajectory"),
+        new("ViolentToPropertyRatio", "V/P Ratio"),
+        new("SafetyPercentile",       "Safety %ile"),
+    };
+
+    private Dictionary<string, string> _filters = new()
+    {
+        ["City"]                   = "",
+        ["State"]                  = "",
+        ["SafetyGrade"]            = "",
+        ["Population"]             = "",
+        ["ViolentCrime"]           = "",
+        ["ViolentRate"]            = "",
+        ["Murder"]                 = "",
+        ["MurderRate"]             = "",
+        ["PropertyCrime"]          = "",
+        ["PropertyRate"]           = "",
+        ["Year"]                   = "",
+        ["ViolentChange"]          = "",
+        ["Trajectory"]             = "",
+        ["ViolentToPropertyRatio"] = "",
+        ["SafetyPercentile"]       = "",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var loadTask = Repo.GetAllCitiesAsync();
+            var completedTask = await Task.WhenAny(loadTask, Task.Delay(TimeSpan.FromSeconds(10)));
+
+            if (completedTask != loadTask)
+            {
+                _loadError = "Loading city data timed out. Please try again.";
+                return;
+            }
+
+            _cities = await loadTask;
+            _loadError = null;
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load city data: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void SetFilter(string key, string value)
+    {
+        _filters[key] = value;
+    }
+
+    private IEnumerable<CrimeCity> FilteredCities => _cities.Where(c =>
+        (string.IsNullOrEmpty(_filters["City"])                   || (c.City ?? string.Empty).Contains(_filters["City"], StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(_filters["State"])                  || (c.State ?? string.Empty).Contains(_filters["State"], StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(_filters["SafetyGrade"])            || CityGridHelpers.GetSafetyGrade(c.ViolentRate).Contains(_filters["SafetyGrade"], StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(_filters["Population"])             || c.Population.ToString().Contains(_filters["Population"])) &&
+        (string.IsNullOrEmpty(_filters["ViolentCrime"])           || c.ViolentCrime.ToString().Contains(_filters["ViolentCrime"])) &&
+        (string.IsNullOrEmpty(_filters["ViolentRate"])            || c.ViolentRate.ToString("F2").Contains(_filters["ViolentRate"])) &&
+        (string.IsNullOrEmpty(_filters["Murder"])                 || c.Murder.ToString().Contains(_filters["Murder"])) &&
+        (string.IsNullOrEmpty(_filters["MurderRate"])             || c.MurderRate.ToString("F2").Contains(_filters["MurderRate"])) &&
+        (string.IsNullOrEmpty(_filters["PropertyCrime"])          || c.PropertyCrime.ToString().Contains(_filters["PropertyCrime"])) &&
+        (string.IsNullOrEmpty(_filters["PropertyRate"])           || c.PropertyRate.ToString("F2").Contains(_filters["PropertyRate"])) &&
+        (string.IsNullOrEmpty(_filters["Year"])                   || c.Year.ToString().Contains(_filters["Year"])) &&
+        (string.IsNullOrEmpty(_filters["ViolentChange"])          || c.ViolentChange.ToString("F2").Contains(_filters["ViolentChange"])) &&
+        (string.IsNullOrEmpty(_filters["Trajectory"])             || (c.Trajectory ?? string.Empty).Contains(_filters["Trajectory"], StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(_filters["ViolentToPropertyRatio"]) || c.ViolentToPropertyRatio.ToString("F2").Contains(_filters["ViolentToPropertyRatio"])) &&
+        (string.IsNullOrEmpty(_filters["SafetyPercentile"])       || c.SafetyPercentile.ToString().Contains(_filters["SafetyPercentile"]))
+    );
+
+    private IEnumerable<CrimeCity> FilteredAndSortedCities => _sortColumn switch
+    {
+        "City"                   => _sortAsc ? FilteredCities.OrderBy(c => c.City)                   : FilteredCities.OrderByDescending(c => c.City),
+        "State"                  => _sortAsc ? FilteredCities.OrderBy(c => c.State)                  : FilteredCities.OrderByDescending(c => c.State),
+        "SafetyGrade"            => _sortAsc ? FilteredCities.OrderBy(c => c.ViolentRate)            : FilteredCities.OrderByDescending(c => c.ViolentRate),
+        "Population"             => _sortAsc ? FilteredCities.OrderBy(c => c.Population)             : FilteredCities.OrderByDescending(c => c.Population),
+        "ViolentCrime"           => _sortAsc ? FilteredCities.OrderBy(c => c.ViolentCrime)           : FilteredCities.OrderByDescending(c => c.ViolentCrime),
+        "ViolentRate"            => _sortAsc ? FilteredCities.OrderBy(c => c.ViolentRate)            : FilteredCities.OrderByDescending(c => c.ViolentRate),
+        "Murder"                 => _sortAsc ? FilteredCities.OrderBy(c => c.Murder)                 : FilteredCities.OrderByDescending(c => c.Murder),
+        "MurderRate"             => _sortAsc ? FilteredCities.OrderBy(c => c.MurderRate)             : FilteredCities.OrderByDescending(c => c.MurderRate),
+        "PropertyCrime"          => _sortAsc ? FilteredCities.OrderBy(c => c.PropertyCrime)          : FilteredCities.OrderByDescending(c => c.PropertyCrime),
+        "PropertyRate"           => _sortAsc ? FilteredCities.OrderBy(c => c.PropertyRate)           : FilteredCities.OrderByDescending(c => c.PropertyRate),
+        "Year"                   => _sortAsc ? FilteredCities.OrderBy(c => c.Year)                   : FilteredCities.OrderByDescending(c => c.Year),
+        "ViolentChange"          => _sortAsc ? FilteredCities.OrderBy(c => c.ViolentChange)          : FilteredCities.OrderByDescending(c => c.ViolentChange),
+        "Trajectory"             => _sortAsc ? FilteredCities.OrderBy(c => c.Trajectory)             : FilteredCities.OrderByDescending(c => c.Trajectory),
+        "ViolentToPropertyRatio" => _sortAsc ? FilteredCities.OrderBy(c => c.ViolentToPropertyRatio) : FilteredCities.OrderByDescending(c => c.ViolentToPropertyRatio),
+        "SafetyPercentile"       => _sortAsc ? FilteredCities.OrderBy(c => c.SafetyPercentile)       : FilteredCities.OrderByDescending(c => c.SafetyPercentile),
+        _                        => FilteredCities
+    };
+
+    private void SortBy(string column)
+    {
+        if (_sortColumn == column)
+            _sortAsc = !_sortAsc;
+        else
+        {
+            _sortColumn = column;
+            _sortAsc = true;
+        }
+    }
+
+    private string SortIndicator(string column) =>
+        _sortColumn != column ? "" : _sortAsc ? "▲" : "▼";
+}

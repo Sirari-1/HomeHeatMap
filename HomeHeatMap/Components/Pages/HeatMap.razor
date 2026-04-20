@@ -1,0 +1,109 @@
+﻿@page "/heatmap"
+@using HomeHeatMap.Components.Data
+@inject ICrimeDataService CrimeDataService
+@inject IDebugService DebugService
+
+<PageTitle>Heat Map</PageTitle>
+
+<h1>Lake Okeechobee Region — Town Heat Map</h1>
+
+<p>This heat map shows how 10 towns around Lake Okeechobee rank across multiple dimensions. Scores are 0-100 (higher = better).</p>
+<p style="font-size: 0.9em; color: #666;">
+    <em>📋 Check the <a href="/api-exports">API Exports</a> page to view raw API responses</em>
+</p>
+
+@if (towns == null)
+{
+    <p><em>Loading town data from APIs...</em></p>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-warning">⚠️ @errorMessage</div>
+}
+else
+{
+    <div class="heatmap-container">
+        <div class="legend">
+            <div><strong>Legend (score)</strong></div>
+            <div class="legend-scale">
+                <span class="scale-box" style="background:#d73027;"></span><span>0-20</span>
+                <span class="scale-box" style="background:#fc8d59;"></span><span>21-40</span>
+                <span class="scale-box" style="background:#fee08b;"></span><span>41-60</span>
+                <span class="scale-box" style="background:#91cf60;"></span><span>61-80</span>
+                <span class="scale-box" style="background:#1a9850;"></span><span>81-100</span>
+            </div>
+        </div>
+
+        <div class="heatmap-grid">
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>Town</th>
+                        @foreach (var m in metricKeys)
+                        {
+                            <th>@m</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (towns != null)
+                    {
+                        @foreach (var t in towns)
+                        {
+                            <tr>
+                                <td class="town-name">@t.Name</td>
+                                @foreach (var m in metricKeys)
+                                {
+                                    var score = t.GetScore(m);
+                                    var color = GetColorForScore(score);
+                                    var scoreDisplay = score % 1 == 0 ? ((int)score).ToString() : score.ToString();
+                                    <td title="@m: @score" style="background: @color; color: @(score < 45 ? "white" : "black");">@scoreDisplay</td>
+                                }
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Town>? towns;
+    private string? errorMessage;
+    private string[] metricKeys = null!;
+    private bool debugLogged = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            metricKeys = TownRepository.MetricKeys;
+
+            if (!debugLogged)
+            {
+                await DebugService.LogCrimeApiResponseAsync("Pahokee", "FL");
+                debugLogged = true;
+            }
+
+            towns = await TownRepository.GetTownsAsync(CrimeDataService);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading data: {ex.Message}";
+            towns = new List<Town>();
+        }
+    }
+
+    private string GetColorForScore(double score)
+    {
+        if (score < 0) score = 0;
+        if (score > 100) score = 100;
+
+        if (score <= 20) return "#d73027";
+        if (score <= 40) return "#fc8d59";
+        if (score <= 60) return "#fee08b";
+        if (score <= 80) return "#91cf60";
+        return "#1a9850";
+    }
+}

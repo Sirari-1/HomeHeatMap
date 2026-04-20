@@ -1,0 +1,77 @@
+.heatmap-container {
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.legend {
+    margin-bottom: 30px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+}
+
+.legend-scale {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.scale-box {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 1px solid #333;
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+.heatmap-grid {
+    overflow-x: auto;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.town-name {
+    font-weight: 600;
+    min-width: 120px;
+    background-color: #f8f9fa !important;
+}
+
+table {
+    background-color: white;
+}
+
+table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    text-align: center;
+    padding: 12px 8px;
+}
+
+table td {
+    text-align: center;
+    padding: 12px 8px;
+    font-weight: 500;
+    transition: opacity 0.2s ease;
+}
+
+table tbody tr:hover {
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    .legend-scale {
+        gap: 10px;
+    }
+
+    table {
+        font-size: 0.9rem;
+    }
+
+    table td, table th {
+        padding: 8px 4px;
+    }
+}

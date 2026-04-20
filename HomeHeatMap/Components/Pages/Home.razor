@@ -1,0 +1,39 @@
+﻿@page "/"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IJSRuntime JS
+
+<PageTitle>Florida Crime Heat Map</PageTitle>
+
+<h2 style="margin-bottom: 4px;">Florida Crime Heat Map</h2>
+<p style="color: gray; font-size: 13px;">
+    Cities color-coded by Safety Percentile. Click a marker for details.
+    Coordinates are resolved on first load and cached in your browser.
+</p>
+
+@if (!string.IsNullOrWhiteSpace(_mapError))
+{
+    <p class="text-danger">⚠️ @_mapError</p>
+}
+
+<div id="map" style="height: 650px; width: 100%; border-radius: 8px; border: 1px solid #ccc;"></div>
+
+@code {
+    private string? _mapError;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("floridaHeatMap.init");
+                _mapError = null;
+            }
+            catch (Exception ex)
+            {
+                _mapError = $"Map initialization failed: {ex.Message}";
+                StateHasChanged();
+            }
+        }
+    }
+}
