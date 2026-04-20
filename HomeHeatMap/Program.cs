@@ -45,17 +45,35 @@ using (var scope = app.Services.CreateScope())
         Path.Combine(app.Environment.ContentRootPath, "Data", "city-index.json")
     };
 
-    var jsonPath = candidateJsonPaths.FirstOrDefault(File.Exists) ?? candidateJsonPaths[0];
-    logger.LogInformation("📄 city-index.json path selected: {Path}", jsonPath);
+    var jsonPath = candidateJsonPaths.FirstOrDefault(File.Exists);
 
-    var removed = await db.CrimeCities
-        .Where(c => c.State != "Florida")
-        .ExecuteDeleteAsync();
+    if (!string.IsNullOrWhiteSpace(jsonPath))
+    {
+        logger.LogInformation("📄 city-index.json path selected: {Path}", jsonPath);
 
-    if (removed > 0)
-        logger.LogInformation("🗑️ Removed {Count} non-Florida cities from database", removed);
+        var removed = await db.CrimeCities
+            .Where(c => c.State != "Florida")
+            .ExecuteDeleteAsync();
 
-    await CrimeDatabaseSeeder.SeedAsync(db, jsonPath, logger);
+        if (removed > 0)
+            logger.LogInformation("🗑️ Removed {Count} non-Florida cities from database", removed);
+
+        await CrimeDatabaseSeeder.SeedAsync(db, jsonPath, logger);
+    }
+    else
+    {
+        var existingCount = await db.CrimeCities.CountAsync();
+
+        if (existingCount > 0)
+        {
+            logger.LogInformation("ℹ️ city-index.json not found. Using existing database data ({Count} cities).", existingCount);
+        }
+        else
+        {
+            logger.LogError("❌ city-index.json not found and database is empty. Add seed data file or include a prepopulated crimedata.db.");
+        }
+    }
+
     await CrimeCityCoordinatesBackfill.PopulateMissingCoordinatesAsync(db, httpClientFactory, logger);
 }
 
